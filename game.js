@@ -2,7 +2,7 @@
 "use strict";
 var cv=document.getElementById("game"),cx=cv.getContext("2d");
 var DPR=Math.min(window.devicePixelRatio||1,2);
-var VW=360,VH,SC;
+var VW=300,VH,SC;
 function resize(){
   var W=window.innerWidth,oldH=window.innerHeight;
   if(window.visualViewport){
@@ -38,6 +38,22 @@ function sLand(){tone(480,0.1,"triangle",0.1,-320);}
 function sStar(){tone(880,0.12,"sine",0.14,400);setTimeout(function(){tone(1320,0.15,"sine",0.1,500);},60);}
 function sPerfect(){tone(660,0.14,"sine",0.12,400);setTimeout(function(){tone(990,0.16,"sine",0.1,300);},60);setTimeout(function(){tone(1320,0.2,"sine",0.08,400);},120);}
 function sDie(){tone(500,0.35,"sawtooth",0.1,-380);}
+// ---------- Music (procedural, fluffy loop) ----------
+// gentle pentatonic lullaby so nothing ever sounds wrong; no pitch slides
+var PENT=[523.25,587.33,659.25,783.99,880]; // C D E G A (C major pentatonic)
+var MEL=[0,2,4,3,4,2,0,1];                   // a rising-then-falling line (indices into PENT)
+var BAS=[0,0,4,4,3,3,0,0];                   // soft bass matching the chord feel
+var musStep=0,musT=0;
+function music(){
+  var a=ac();if(!a)return;
+  if(musT>a.currentTime-0.05){
+    var f=PENT[MEL[musStep%MEL.length]];
+    tone(f,0.6,"sine",0.045,0);                       // pure lead, no slide
+    if(musStep%4===2)tone(f/2,0.7,"triangle",0.035,0); // warm bass under every 4th
+    musStep++;
+    musT=a.currentTime+0.27;
+  }
+}
 
 // ---------- Player & world ----------
 var G=null;
@@ -50,7 +66,7 @@ function newGame(){
     platforms:[],nextId:1,topY:groundY,star:[],part:[],shake:0,lastPf:0,lastPfX:0,
     everJumped:false,mil:0,milT:-9,milV:0,groundY:groundY};
   // solid ground platform spanning the screen
-  G.platforms.push({x:0,y:groundY,w:VW,type:0,a:0,d:0,base:0,t:0});
+  G.platforms.push({x:0,y:groundY,w:VW,type:0,a:0,d:0,base:0,t:0,by:groundY,ox:0,oy:0,sp:0,spv:0,drop:false,dy:0});
   // camera keeps player near the bottom on the ground, easing up as they climb
   G.camY=groundY-VH*followK(0);
   G.lastPf=0;G.lastPfX=0;G.camX=VW/2-VW/2;
@@ -68,21 +84,27 @@ function followK(alt){
 // ---------- Generation ----------
 function gen(){
   var guard=0;
-  while(G.topY>G.camY-VH*3.2&&guard++<80){
+  while(G.topY>G.camY-VH*3.2&&guard++<90){
     var prev=G.platforms[G.platforms.length-1];
     if(!prev)break;
-    var d=1+Math.min(1.1,(-prev.y)/1000); // difficulty 1->2.1
-    var gap=40+Math.random()*16*d;
+    var d=1+Math.min(1.5,(-prev.y)/950); // difficulty 1->2.5
+    var gap=38+Math.random()*18*d;
     var ny=prev.y-gap;
-    var nw=Math.max(46,130-(Math.random()*34+12)*d+ (Math.random()<0.12?25:0));
-    var nx=clamp(prev.x+(Math.random()*2-1)*60*d,20,VW-20-nw);
-    var type=0;
-    if(d>1.2&&Math.random()<0.16*d-0.15)type=1;
-    if(Math.random()<0.08)type=3;
-    var p={x:nx,y:ny,w:nw,type:type,a:type===1?(40+Math.random()*30)*(Math.random()<0.5?-1:1):0,
-           base:nx,t:Math.random()*999,d:type===1?(Math.random()<0.5?-1:1):0};
+    var nw=Math.max(38,146-(Math.random()*66+14)*d+(Math.random()<0.15?34:0));
+    var nx=clamp(prev.x+(Math.random()*2-1)*76*d,10,VW-10-nw);
+    var alt=Math.max(0,G.groundY-ny),r=Math.random(),type=0;
+    if(alt>1300&&r<0.05)type=2;
+    else if(alt>900&&r<0.07)type=5;
+    else if(alt>650&&r<0.11*d)type=4;
+    else if(d>1.05&&Math.random()<0.12*d)type=1;
+    else if(Math.random()<0.07)type=3;
+    var mv=type===1?(40+Math.random()*40)*(Math.random()<0.5?-1:1):0;
+    var p={x:nx,y:ny,w:nw,type:type,a:mv,base:nx,by:ny,t:Math.random()*999,
+           d:type===1?(Math.random()<0.5?-1:1):0,
+           sp:type===2?34+Math.random()*56:0,spv:0,
+           ph:(type===5?Math.random()*5:0),sh:0,drop:false,dy:0,ox:0,oy:0};
     G.platforms.push(p);
-    if(Math.random()<0.75){
+    if(Math.random()<0.7){
       G.star.push({x:nx+Math.random()*Math.max(8,nw-20),y:ny-42,r:7,
         sX:(Math.random()*2-1)*40,sY:-18,va:(Math.random()*2-1)*2,id:G.nextId++});
     }
@@ -169,11 +191,32 @@ function step(){
   if(!p.grounded&&p.dragON){p.vx+=p.aimX*1500*DT;if(p.vx>520)p.vx=520;if(p.vx<-520)p.vx=-520;}
   p.vy+=1500*DT;
   p.x+=p.vx*DT;p.y+=p.vy*DT;
-  if(p.x<10){p.x=10;p.vx=Math.abs(p.vx)*0.5;}
-  if(p.x>VW-10){p.x=VW-10;p.vx=-Math.abs(p.vx)*0.5;}
-  // moving platforms
+  // special platforms
   for(var i=0;i<p.platforms.length;i++){var pf=p.platforms[i];
     if(pf.type===1)pf.x=pf.base+Math.sin(pf.t+now)*pf.a;
+    if(pf.type===2){ // spiky: bobbing platform, spikes thrust up
+      pf.y=pf.by+Math.sin(now*1.6+pf.t)*pf.sp*0.35;
+      pf.spv=Math.max(0.02,Math.sin(now*1.6+pf.t))*1+0.25;
+    }
+    if(pf.type===5){ // shaky: trembles then drops
+      pf.ph+=DT;
+      if(pf.ph>0.5&&!pf.sh&&!pf.drop){pf.sh=1;pf.ph=9;}
+      if(pf.sh&&!pf.drop){pf.ox=Math.sin(now*60)*3;if(pf.ph>10){pf.drop=true;pf.dy=0;}}
+      if(pf.drop){pf.dy+=900*DT;pf.y+=pf.dy*DT;pf.oy=Math.max(0,pf.oy-DT*3);}
+      if(!pf.drop&&!pf.sh)pf.ox=0;
+    }
+  }
+  // slippery ground (type 4): low friction, keeps sliding until it leaves the platform
+  if(p.grounded&&p.lastPf>=0&&p.lastPf<p.platforms.length&&p.platforms[p.lastPf].type===4){
+    p.slide=(p.lastAimX||0.6)*300;
+  }
+  // platform dropped out from under the player
+  if(p.grounded&&p.lastPf>=0&&p.lastPf<p.platforms.length&&p.platforms[p.lastPf].drop){
+    p.grounded=false;p.vx=0;p.vy=0;
+  }
+  // spike thrusts up while player stands on it
+  if(p.grounded&&p.lastPf>=0&&p.lastPf<p.platforms.length&&p.platforms[p.lastPf].type===2&&p.platforms[p.lastPf].spv>0.4){
+    die();
   }
   // ride moving platform while grounded
   if(p.grounded&&p.lastPf>=0&&p.lastPf<p.platforms.length){
@@ -184,13 +227,15 @@ function step(){
   if(!p.grounded){
     var prevY=p.y-p.vy*DT;
     for(var i=0;i<p.platforms.length;i++){var pf=p.platforms[i];
+      if(pf.drop)continue;
       if(p.x>pf.x&&p.x<pf.x+pf.w&&p.vy>=0&&p.y>=pf.y&&prevY<=pf.y+6){
         p.y=pf.y;p.vy=0;p.grounded=true;p.lastPf=i;p.lastPfX=pf.x;
         p.sx=0.5;p.sy=-0.15;
-        p.slide=p.lastAimX*170;
+        p.slide=p.lastAimX*(pf.type===4?300:170);
         sLand();
         p.combos++;
         if(pf.type===3){p.stars++;p.landFlash=0.5;sPerfect();burst(p.x,pf.y-6,16);}
+        if(pf.type===2&&pf.spv>0.4){p.dead=true;die();}
         break;
       }
     }
@@ -203,9 +248,10 @@ function step(){
   }
   // keep the user grounded: feet pinned to the platform top, no vy/y sink
   if(p.grounded)p.vx=0;
-  if(p.grounded&&p.slide){ // forward "bounce" in the jump direction, with friction
+  if(p.grounded&&p.slide){ // forward bounce; friction low on slippery (glides off the end)
     p.x+=p.slide*DT;
-    p.slide-=Math.sign(p.slide)*260*DT;if(Math.abs(p.slide)<12)p.slide=0;
+    var frc=(p.lastPf>=0&&p.lastPf<p.platforms.length&&p.platforms[p.lastPf].type===4)?30:260;
+    p.slide-=Math.sign(p.slide)*frc*DT;if(Math.abs(p.slide)<(frc>100?12:4))p.slide=0;
     if(p.x<8){p.x=8;p.slide=Math.abs(p.slide)*0.4;}
     if(p.x>VW-8){p.x=VW-8;p.slide=-Math.abs(p.slide)*0.4;}
   }
@@ -328,17 +374,56 @@ function leg(lx,ly,dir){
 // ---------- Platforms ----------
 var RCB=["#ff5c8a","#ff9f43","#ffd93d","#6ad66a","#4aa8ff","#b06bff"];
 function drawPlatform(pf){
-  var x=pf.x-G.camX;
-  var y=pf.y-G.camY;
-  if(y<-40||y>VH+40)return;
+  var x=pf.x-G.camX+pf.ox;
+  var y=pf.y-G.camY+pf.oy;
+  if(y<-60||y>VH+60)return;
   var n=Math.max(3,Math.round(pf.w/9)),seg=pf.w/n;
   for(var i=0;i<n;i++){
-    cx.fillStyle=RCB[i%RCB.length];
+    var col=RCB[i%RCB.length];
+    if(pf.type===4)col="#a8e6ff";
+    else if(pf.type===5)col="#ff8a80";
+    else if(pf.type===2)col="#5b6bb0";
+    cx.fillStyle=col;
     rr(x+i*seg-1,y-4,seg+2,9,4);cx.fill();
   }
   cx.fillStyle="rgba(255,255,255,0.9)";
   rr(x,y-7,pf.w,5,2.5);cx.fill();
-  // puff
+  if(pf.type===0&&pf.y>=G.groundY-1&&pf.y<=G.groundY+1){ // solid grassy meadow filling below
+    var gy=y-6;
+    cx.fillStyle="#3d2457";cx.fillRect(0,gy,VW,VH-gy+2);          // deep soil to the screen bottom
+    cx.fillStyle="#5a3a80";cx.fillRect(0,gy,VW,26);               // richer topsoil
+    cx.fillStyle="#4fc45f";cx.fillRect(0,gy,VW,9);                // grass band
+    for(var i=0;i<Math.round(VW/7);i++){
+      var gx=i*7+Math.sin(pf.t+i*3)*1.5;
+      cx.fillStyle=i%3?"#8ef07a":"#3fae4f";
+      cx.beginPath();cx.moveTo(gx,gy+8);cx.lineTo(gx-3,gy+3);cx.lineTo(gx+3,gy+3);cx.closePath();cx.fill();
+    }
+    var pc=["#ff5c8a","#ffd166","#7ee0ff","#c77dff","#ff9f43"];
+    for(var i=0;i<9;i++){
+      var ddx=((i*83+17)%VW),ddy=gy-(3+((i*29)%7));
+      blob(ddx,ddy,2.4,pc[i%pc.length]);
+    }
+  }
+  if(pf.type===2){ // thrusting steel spikes
+    var sht=pf.spv*16+3;
+    for(var i=0;i<(pf.w/12)|0;i++){
+      var sx=x+6+i*12;
+      cx.fillStyle="#c9d4e8";
+      cx.beginPath();cx.moveTo(sx-sht*0.5,y-6);cx.lineTo(sx,y-6-sht);cx.lineTo(sx+sht*0.5,y-6);cx.closePath();cx.fill();
+      cx.fillStyle="#8a96b8";
+      cx.beginPath();cx.moveTo(sx-sht*0.25,y-6);cx.lineTo(sx,y-6-sht);cx.lineTo(sx,y-6);cx.closePath();cx.fill();
+    }
+  }
+  if(pf.type===4){ // icy slippery sheen
+    for(var i=0;i<3;i++)blob(x+12+i*(pf.w-26)/2+Math.sin(now*2+i)*2,y-4,1.8,"rgba(255,255,255,0.85)");
+  }
+  if(pf.type===5){ // cracks, redden and shake before dropping
+    for(var i=0;i<4;i++){
+      var cx2=x+(i*41)%pf.w;
+      cx.strokeStyle=pf.sh?"rgba(200,40,80,0.9)":"rgba(120,20,60,0.5)";cx.lineWidth=1;
+      cx.beginPath();cx.moveTo(cx2,y-7);cx.lineTo(cx2+(i%2?5:-5),y+2);cx.stroke();
+    }
+  }
   var fl=(now*1.2)%pf.w;
   blob(x+fl,y-10,2.5,"rgba(255,255,255,0.7)");
   if(pf.type===3){blob(x+pf.w/2,y-9,6,"#ffd77a");blob(x+pf.w/2-7,y-6,4,"#ffc24a");blob(x+pf.w/2+7,y-6,4,"#ffc24a");}
@@ -370,24 +455,26 @@ function starPath(px,py,r){
 var clouds=[];
 (function(){for(var i=0;i<9;i++)clouds.push({x:Math.random()*VW,y:Math.random()*VH,s:0.5+Math.random()*1.1,v:Math.random()*6+3,par:0.5+Math.random()*0.5});})();
 function drawBG(){
-  var h=Math.min(1,G.height/3000);
+  var h=Math.min(1,G.height/2800);
   var g=cx.createLinearGradient(0,0,0,VH);
-  g.addColorStop(0,mix("#3a1b6e","#1a0b36",1-h*0.6));
-  g.addColorStop(0.4,mix("#5b2c8a","#2a1460",h));
-  g.addColorStop(0.75,mix("#8a5fd0","#7ec8ff",h));
-  g.addColorStop(1,mix("#ffc6dd","#bfe8ff",h));
+  g.addColorStop(0,mix("#12102b","#05040f",h));
+  g.addColorStop(0.4,mix("#39206e","#0b0820",h));
+  g.addColorStop(0.75,mix("#8a5fd0","#241a52",h));
+  g.addColorStop(1,mix("#ffd1ec","#6fc3ff",h));
   cx.fillStyle=g;cx.fillRect(0,0,VW,VH);
+  // clouds fade out and stars fade in as you climb into space
+  cx.globalAlpha=Math.max(0,0.55*(1-h*1.4));
   for(var i=0;i<clouds.length;i++){var c=clouds[i];
     c.x+=c.v*DT;if(c.x>VW+60)c.x=-60;
     var cy=((c.y-G.camY*c.par*0.25)%(VH+120)+VH+120)%(VH+120)-60;
     drawCloud(c.x-G.camX*0.18*c.par,cy,c.s);
   }
-  if(h>0.35){
-    cx.fillStyle="rgba(255,255,255,"+((h-0.35)*1.1)+")";
-    for(var i=0;i<26;i++){
-      var tx=(i*71)%VW,ty=(i*137)%(VH*0.7);
-      if(Math.sin(now*6+i*1.3)>0.5)blob(tx,ty,1.3,"rgba(255,255,255,0.8)");
-    }
+  cx.globalAlpha=1;
+  var ns=Math.round(14+h*90)+Math.floor(G.height/40)%6;
+  for(var i=0;i<ns&&i<110;i++){
+    var tx=(i*61.8)%VW,ty=(i*97.3)%(VH)+((i*31)%(VH*0.2));
+    var tw=0.5+((i*13)%10)/10;
+    if(h>0.05&&Math.sin(now*1.5+i*2.1+tx)>0.1)blob(tx,ty,tw,"rgba(255,255,255,"+(0.35+0.5*h)+")");
   }
 }
 function drawCloud(x,y,s){
@@ -418,17 +505,17 @@ function drawAim(){
 
 // ---------- UI ----------
 function drawUI(){
-  cx.textAlign="center";cx.textBaseline="top";
+  cx.textAlign="center";cx.textBaseline="middle";
   var ht=Math.max(0,Math.floor(G.height/10));
-  cx.font="800 "+Math.round(36*SC)+"px system-ui";
-  cx.lineWidth=Math.round(5*SC);
-  cx.strokeStyle="rgba(40,20,80,0.6)";
-  var top=14*SC;
-  cx.strokeText(ht+"m",VW/2,top);
-  cx.fillStyle="#fff";cx.fillText(ht+"m",VW/2,top);
-  cx.textAlign="right";
-  cx.strokeText("★ "+G.stars,VW-14*SC,top);
-  cx.fillStyle="#ffe066";cx.fillText("★ "+G.stars,VW-14*SC,top);
+  var hs=16*SC;
+  // small soft rounded pill backdrop for legibility
+  rr(VW/2-46*SC,hs-20*SC,92*SC,26*SC,13*SC);
+  cx.fillStyle="rgba(30,12,60,0.28)";cx.fill();
+  cx.font="800 "+Math.round(20*SC)+"px system-ui";cx.fillStyle="#fff";
+  cx.fillText(ht+"m",VW/2,hs-6*SC);
+  rr(VW-92*SC,hs-20*SC,84*SC,26*SC,13*SC);cx.fillStyle="rgba(30,12,60,0.28)";cx.fill();
+  cx.font="800 "+Math.round(19*SC)+"px system-ui";cx.fillStyle="#ffe066";
+  cx.fillText("★ "+G.stars,VW-50*SC,hs-6*SC);
   cx.textAlign="center";
 }
 
@@ -544,6 +631,7 @@ function loop(ts){
   now=ts/1000;
   step();
   render();
+  music();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(function(ts){t0=ts;requestAnimationFrame(loop);});
