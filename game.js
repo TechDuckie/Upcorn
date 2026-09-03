@@ -4,11 +4,21 @@ var cv=document.getElementById("game"),cx=cv.getContext("2d");
 var DPR=Math.min(window.devicePixelRatio||1,2);
 var VW=360,VH,SC;
 function resize(){
-  var W=cv.clientWidth||window.innerWidth,H=cv.clientHeight||window.innerHeight;
+  var W=window.innerWidth,oldH=window.innerHeight;
+  if(window.visualViewport){
+    W=window.visualViewport.width;oldH=window.visualViewport.height;
+  }
+  var H=oldH;
   cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+"px";cv.style.height=H+"px";
   SC=W/VW;VH=H/SC;
 }
-window.addEventListener("resize",resize);resize();
+window.addEventListener("resize",resize);
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize",resize);
+  window.visualViewport.addEventListener("scroll",resize);
+}
+window.addEventListener("orientationchange",resize);
+resize();
 var TAU=Math.PI*2,now=0,t0=0;
 
 // ---------- Audio ----------
@@ -36,7 +46,7 @@ function newGame(){
   G={x:VW/2,y:groundY,vx:0,vy:0,grounded:true,dead:false,over:false,started:false,
     menu:true,aiming:false,power:0,aimX:0,aimY:0,armed:false,drag:{x:0,y:0},dragON:false,
     camX:0,camY:0,height:0,stars:0,best:+(localStorage.getItem("upcornBest")||0),
-    combos:0,landFlash:0,sx:0,sy:0,t:Math.random()*999,blink:0,
+    combos:0,landFlash:0,sx:0,sy:0,slide:0,lastDir:0,lastAimX:0,t:Math.random()*999,blink:0,
     platforms:[],nextId:1,topY:groundY,star:[],part:[],shake:0,lastPf:0,lastPfX:0,
     everJumped:false,mil:0,milT:-9,milV:0,groundY:groundY};
   // solid ground platform spanning the screen
@@ -51,8 +61,8 @@ function clamp(v,a,b){return v<a?a:(v>b?b:v);}
 // on-screen fraction (0..1) for the player: ~0.72 near the ground (fills the screen),
 // easing to ~0.40 once you're high so you can see the climb ahead
 function followK(alt){
-  var a=alt/1100;if(a>1)a=1;
-  return 0.72-0.32*a;
+  var a=alt/1000;if(a>1)a=1;
+  return 0.84-0.40*a;
 }
 
 // ---------- Generation ----------
@@ -117,6 +127,7 @@ function up(e){
     G.vx=G.aimX*V;G.vy=G.aimY*V;
     if(-G.vy<260)G.vy=-260;
     G.grounded=false;G.combos=0;G.everJumped=true;
+    G.lastAimX=G.aimX;G.lastDir=G.aimX>0.05?1:(G.aimX<-0.05?-1:0);
     G.sx=-0.6;G.sy=0.2;
     burst(G.x,G.y+5,10);
     sJump();
@@ -152,6 +163,8 @@ function step(){
   }
   // can't launch while airborne (clears any stale armed gesture)
   if(!p.grounded&&p.armed)p.armed=false;
+  // a drag that isn't followed by a release within 0.28s is stale — disarm it
+  if(p.armed&&now-p.armedAt>0.28)p.armed=false;
   // air control: aim while airborne nudges vx (bounded so a stuck drag can't runaway)
   if(!p.grounded&&p.dragON){p.vx+=p.aimX*1500*DT;if(p.vx>520)p.vx=520;if(p.vx<-520)p.vx=-520;}
   p.vy+=1500*DT;
@@ -174,6 +187,7 @@ function step(){
       if(p.x>pf.x&&p.x<pf.x+pf.w&&p.vy>=0&&p.y>=pf.y&&prevY<=pf.y+6){
         p.y=pf.y;p.vy=0;p.grounded=true;p.lastPf=i;p.lastPfX=pf.x;
         p.sx=0.5;p.sy=-0.15;
+        p.slide=p.lastAimX*170;
         sLand();
         p.combos++;
         if(pf.type===3){p.stars++;p.landFlash=0.5;sPerfect();burst(p.x,pf.y-6,16);}
@@ -189,6 +203,12 @@ function step(){
   }
   // keep the user grounded: feet pinned to the platform top, no vy/y sink
   if(p.grounded)p.vx=0;
+  if(p.grounded&&p.slide){ // forward "bounce" in the jump direction, with friction
+    p.x+=p.slide*DT;
+    p.slide-=Math.sign(p.slide)*260*DT;if(Math.abs(p.slide)<12)p.slide=0;
+    if(p.x<8){p.x=8;p.slide=Math.abs(p.slide)*0.4;}
+    if(p.x>VW-8){p.x=VW-8;p.slide=-Math.abs(p.slide)*0.4;}
+  }
   if(p.grounded&&p.lastPf>=0&&p.lastPf<p.platforms.length&&p.platforms[p.lastPf].y<=p.y){
     p.y=p.platforms[p.lastPf].y;p.vy=0;
   }
