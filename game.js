@@ -2,7 +2,7 @@
 "use strict";
 var cv=document.getElementById("game"),cx=cv.getContext("2d");
 var DPR=Math.min(window.devicePixelRatio||1,2);
-var VW=300,VH,SC,UISC;
+var VW=300,VH,SC,UISC,UIP;
 function resize(){
   var W=window.innerWidth,oldH=window.innerHeight;
   if(window.visualViewport){
@@ -10,7 +10,7 @@ function resize(){
   }
   var H=oldH;
   cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+"px";cv.style.height=H+"px";
-  SC=W/VW;VH=H/SC;UISC=W/360;
+  SC=W/VW;VH=H/SC;UISC=W/360;UIP=340/W;
 }
 window.addEventListener("resize",resize);
 if(window.visualViewport){
@@ -88,7 +88,8 @@ function newGame(){
     camX:0,camY:0,height:0,stars:0,best:+(localStorage.getItem("upcornBest")||0),
     combos:0,landFlash:0,sx:0,sy:0,slide:0,lastDir:0,lastAimX:0,t:Math.random()*999,blink:0,
     platforms:[],nextId:1,topY:groundY,star:[],part:[],shake:0,lastPf:0,lastPfX:0,
-    everJumped:false,mil:0,milT:-9,milV:0,groundY:groundY,stand:null,fly:[],starPop:0};
+    everJumped:false,mil:0,milT:-9,milV:0,groundY:groundY,stand:null,fly:[],starPop:0,
+    bonus:0,bonusV:0,bonusOn:false,lastTap:-9};
   // broad grass floor so walking can't fall off the edges at the start
   G.platforms.push({x:-1600,y:groundY,w:3600,type:0,a:0,d:0,base:0,t:0,by:groundY,ox:0,oy:0,sp:0,spv:0,drop:false,dy:0});
   // camera keeps player near the bottom on the ground, easing up as they climb
@@ -155,7 +156,11 @@ function down(e){
   if(G.over){if(inRetry(e))retry();return;}
   if(G.menu){begin();return;}
   if(G.dead)return;
-  if(G.grounded){var p=evPt(e);G.drag={x:p.x,y:p.y};G.dragON=true;G.aiming=true;G.power=0;G.aimX=0;G.aimY=0;G.armed=false;G.armedAt=-9;}
+  if(G.grounded){
+    if(G.bonus>=1&&!G.bonusOn&&now-G.lastTap<0.35){activateBonus();return;}
+    G.lastTap=now;
+    var p=evPt(e);G.drag={x:p.x,y:p.y};G.dragON=true;G.aiming=true;G.power=0;G.aimX=0;G.aimY=0;G.armed=false;G.armedAt=-9;
+  }
 }
 function move(e){
   if(!G||!G.dragON||!G.aiming)return;
@@ -186,6 +191,13 @@ function inRetry(e){
   return G.over&&Math.abs(p.x-VW/2)<VW*0.32&&p.y>VH*0.2;
 }
 function retry(){newGame();begin();}
+function activateBonus(){
+  var a=ac();if(a&&a.state==="suspended")a.resume();
+  G.bonusOn=true;G.bonus=1;
+  G.grounded=false;G.stand=null;G.vy=-1500;G.vx=0;G.power=0;
+  G.armed=false;G.dragON=false;G.aiming=false;
+  burst(G.x,G.y+10,26);sPerfect();
+}
 cv.addEventListener("pointerdown",down);
 function cancel(e){if(G){G.dragON=false;G.aiming=false;G.armed=false;G.power=0;}}
 window.addEventListener("pointermove",move);
@@ -215,6 +227,13 @@ function step(){
   // air control: aim while airborne nudges vx (bounded so a stuck drag can't runaway)
   if(!p.grounded&&p.dragON){p.vx+=p.aimX*1500*DT;if(p.vx>520)p.vx=520;if(p.vx<-520)p.vx=-520;}
   p.vy+=1500*DT;
+  p.bonusV+=(p.bonus-p.bonusV)*Math.min(1,DT*5);
+  if(p.bonusOn){
+    p.bonus-=DT*0.3;
+    p.grounded=false;p.stand=null;
+    if(Math.random()<0.75)G.part.push({x:p.x+(Math.random()*20-10),y:p.y+Math.random()*8+8,vx:Math.sin(now*8+Math.random()*5)*40,vy:90+Math.random()*140,l:0.4,r:2+Math.random()*2.5,c:RNB[(Math.random()*RNB.length)|0]});
+    if(p.bonus<=0){p.bonus=0;p.bonusOn=false;}
+  }
   p.x+=p.vx*DT;p.y+=p.vy*DT;
   // special platforms
   for(var i=0;i<p.platforms.length;i++){var pf=p.platforms[i];
@@ -253,6 +272,7 @@ function step(){
       if(pf.drop)continue;
       if(p.x>pf.x&&p.x<pf.x+pf.w&&p.vy>=0&&p.y>=pf.y&&prevY<=pf.y+6){
         p.y=pf.y;p.vy=0;p.grounded=true;p.lastPf=i;p.lastPfX=pf.x;p.stand=pf;
+        if(p.bonusOn){p.bonus=0;p.bonusOn=false;}
         p.sx=0.5;p.sy=-0.15;
         p.slide=p.lastAimX*(pf.type===4?300:170);
         sLand();
@@ -267,10 +287,10 @@ function step(){
   for(var i=p.star.length-1;i>=0;i--){var s=p.star[i];
     s.x+=s.sX*DT;s.y+=s.sY*DT;
     var dx=p.x-s.x,dy=p.y-15-s.y;
-    if(dx*dx+dy*dy<900){p.stars++;p.starPop=0.4;p.fly.push({x:s.x-p.camX,y:s.y-p.camY,t:0});p.star.splice(i,1);sStar();burst(s.x,s.y,8);}
+    if(dx*dx+dy*dy<900){p.stars++;p.starPop=0.4;p.fly.push({x:s.x-p.camX,y:s.y-p.camY,t:0});p.star.splice(i,1);sStar();burst(s.x,s.y,8);if(!p.bonusOn)p.bonus=Math.min(1,p.bonus+0.2);}
   }
   for(var i=p.fly.length-1;i>=0;i--){var f=p.fly[i];
-    var fx=VW-40*UISC,fy=20*UISC;
+    var fx=VW-70*UIP,fy=31*UIP;
     f.x+=(fx-f.x)*Math.min(1,DT*9);f.y+=(fy-f.y)*Math.min(1,DT*9);f.t+=DT;
     if(f.t>0.5)p.fly.splice(i,1);
   }
@@ -335,6 +355,7 @@ var DT=1/60;
 
 // ---------- Particles ----------
 var PC=["#ff6b9d","#ffd166","#7ee0ff","#c77dff","#a3ff8e"];
+var RNB=["#FF4D6D","#FF9F43","#FFE45E","#65E572","#38D9FF","#4D8DFF","#A855F7"];
 function burst(x,y,n){
   for(var i=0;i<n&&G.part.length<250;i++){
     G.part.push({x:x,y:y,vx:(Math.random()*2-1)*180,vy:-Math.random()*200-40,l:0.5+Math.random()*0.5,c:PC[(Math.random()*PC.length)|0],r:2+Math.random()*3});
@@ -530,6 +551,22 @@ function mix(a,b,t){
 function hex(h){return[parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)];}
 
 // ---------- Aim trajectory ----------
+function drawRainbowTail(){
+  var p=G,ux=p.x-p.camX,uy=p.y-p.camY+10;
+  var len=(50+120*G.bonus)*(1-Math.min(0.5,Math.max(0,p.y-G.groundY)/900));
+  var seg=13;cx.lineCap="round";cx.lineJoin="round";
+  for(var i=0;i<RNB.length;i++){
+    var mx=i-(RNB.length-1)/2;
+    cx.strokeStyle=RNB[i];cx.lineWidth=3.4*UISC;
+    cx.beginPath();
+    for(var j=0;j<=seg;j++){
+      var t=j/seg,yy=uy+t*len;
+      var xx=ux+Math.sin(now*9-t*3.2+mx*0.55)*4*(1-t)+mx*2.2*(1-t*0.5);
+      if(j===0)cx.moveTo(xx,yy);else cx.lineTo(xx,yy);
+    }
+    cx.stroke();
+  }
+}
 function drawAim(){
   var p=G;if(!p.aiming)return;
   var V=940*p.power,vx0=p.aimX*V,vy0=p.aimY*V;
@@ -552,28 +589,47 @@ function drawAim(){
 }
 
 // ---------- UI ----------
-function uiCard(x,y,w,h){cx.fillStyle="rgba(40,18,70,0.78)";rr(x,y,w,h,12*UISC);cx.fill();
-  cx.lineWidth=1.5*UISC;cx.strokeStyle="rgba(255,107,168,0.6)";rr(x,y,w,h,12*UISC);cx.stroke();}
+function uiCard(x,y,w,h){cx.fillStyle="rgba(40,18,70,0.78)";rr(x,y,w,h,12*UIP);cx.fill();
+  cx.lineWidth=1.5*UIP;cx.strokeStyle="rgba(255,107,168,0.6)";rr(x,y,w,h,12*UIP);cx.stroke();}
 function drawUI(){
-  cx.textBaseline="middle";
-  var cy=22*UISC,ht=Math.max(0,Math.floor(G.height/10)),mt=ht+"m";
-  var mtw=cx.measureText(mt).width+26*UISC;
-  uiCard(12*UISC,8*UISC,mtw,30*UISC);
-  cx.fillStyle="#fff";cx.font="800 "+Math.round(17*UISC)+"px system-ui";cx.textAlign="center";
-  cx.fillText(mt,12*UISC+mtw/2,23*UISC);
-  var num=""+G.stars,ntw=cx.measureText(num).width;
-  var starR=8.5*UISC,gap=6*UISC;
-  var cw=14*UISC+starR*2+gap+ntw+14*UISC,ccx=VW-12*UISC-cw;
-  uiCard(ccx,8*UISC,cw,30*UISC);
-  var scx=ccx+14*UISC+starR,scy=23*UISC;
-  cx.save();cx.translate(scx,scy);cx.scale(1+G.starPop*0.6,1+G.starPop*0.6);
-  starPath(0,0,8.5);cx.fillStyle="#ffe066";cx.fill();cx.restore();
-  cx.fillStyle="#fff";cx.textAlign="left";cx.font="800 "+Math.round(17*UISC)+"px system-ui";
-  cx.fillText(num,scx+starR+gap,23*UISC);
+  cx.textBaseline="alphabetic";
+  var ht=Math.max(0,Math.floor(G.height/10)),mt=ht+" m";
+  var mx=14*UIP,my=14*UIP,mh=34*UIP;
+  cx.font="800 "+Math.round(21*UIP)+"px system-ui";cx.textAlign="center";
+  var mw=cx.measureText(mt).width+24*UIP;
+  uiCard(mx,my,mw,mh);
+  cx.fillStyle="#FFF8EE";
+  cx.fillText(mt,mx+mw/2,my+23*UIP);
+  var STX=VW-70*UIP,STY=31*UIP,capW=78*UIP,capH=34*UIP,capX=VW-92*UIP;
+  uiCard(capX,14*UIP,capW,capH);
+  var sc=1+G.starPop*0.15;
+  cx.save();cx.translate(STX,STY);cx.scale(sc,sc);cx.rotate(-0.5);
+  starPath(0,0,9*UIP);cx.fillStyle="#FFD83D";cx.fill();
+  starPath(0,0,4*UIP);cx.fillStyle="#FFF19A";cx.fill();
+  cx.restore();
+  cx.fillStyle="#FFF8EE";cx.textAlign="right";cx.font="800 "+Math.round(18*UIP)+"px system-ui";
+  cx.fillText(""+G.stars,capX+capW-12*UIP,STY+6*UIP);
   for(var i=0;i<G.fly.length;i++){var f=G.fly[i];
-    cx.globalAlpha=1-f.t/0.5;starPath(f.x,f.y,6);cx.fillStyle="#ffe066";cx.fill();cx.globalAlpha=1;
+    cx.globalAlpha=1-f.t/0.5;starPath(f.x,f.y,6*UIP);cx.fillStyle="#FFD83D";cx.fill();cx.globalAlpha=1;
   }
   cx.textAlign="center";
+  var bw=Math.min(VW*0.3,170*UIP),bh=22*UIP,bx=VW/2-bw/2,by=20*UIP,ready=G.bonus>=1&&!G.bonusOn;
+  uiCard(bx,by,bw,bh);
+  var ix=bx+3*UIP,iy=by+3*UIP,iw=bw-6*UIP,ih=bh-6*UIP;
+  if(G.bonusV>0.004){
+    cx.save();rr(ix,iy,iw,ih,5*UIP);cx.clip();
+    var g=cx.createLinearGradient(ix,0,ix+iw,0);
+    g.addColorStop(0,"#FF4FA3");g.addColorStop(.2,"#FF9A3C");g.addColorStop(.4,"#FFE45C");
+    g.addColorStop(.6,"#65E572");g.addColorStop(1,"#4D8DFF");
+    cx.fillStyle=g;cx.fillRect(ix,iy,iw*G.bonusV,ih);
+    cx.restore();
+  }
+  var fl=ready?0.3+0.7*Math.abs(Math.sin(now*8)):0;
+  cx.fillStyle="rgba(255,255,255,"+fl+")";rr(ix,iy,iw,ih,5*UIP);cx.fill();
+  if(ready){
+    cx.textAlign="center";cx.fillStyle="#FFE45E";cx.font="800 "+Math.round(13*UIP)+"px system-ui";
+    cx.fillText("DOUBLE TAP ★",VW/2,by+bh+18*UIP);
+  }
 }
 
 // ---------- Game over ----------
@@ -671,6 +727,7 @@ function render(){
   }
   cx.globalAlpha=1;
   drawAim();
+  if(G.bonusOn&&!G.grounded&&G.vy<0)drawRainbowTail();
   if(!G.dead)drawUnicorn();
   cx.restore();
   if(G.menu){drawMenu();}
