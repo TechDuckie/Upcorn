@@ -528,21 +528,24 @@ function drawAim(){
 }
 
 // ---------- UI ----------
+function uiCard(x,y,w,h){cx.fillStyle="rgba(40,18,70,0.78)";rr(x,y,w,h,12*UISC);cx.fill();
+  cx.lineWidth=1.5*UISC;cx.strokeStyle="rgba(255,107,168,0.6)";rr(x,y,w,h,12*UISC);cx.stroke();}
 function drawUI(){
   cx.textBaseline="middle";
-  var cy=22*UISC;
-  // height (left) — soft shadow for a slight 3D pop
-  var ht=Math.max(0,Math.floor(G.height/10));
-  cx.textAlign="center";cx.font="800 "+Math.round(20*UISC)+"px system-ui";
-  cx.fillStyle="rgba(0,0,0,0.4)";cx.fillText(ht+"m",29*UISC,cy+2*UISC);
-  cx.fillStyle="#fff";cx.fillText(ht+"m",28*UISC,cy);
-  // stars (right): number with a small crisp star icon to its left
-  cx.font="800 "+Math.round(20*UISC)+"px system-ui";
-  var tw=cx.measureText(""+G.stars).width;
-  cx.textAlign="right";cx.fillStyle="rgba(0,0,0,0.4)";cx.fillText(""+G.stars,VW-33*UISC,cy+2*UISC);
-  cx.fillStyle="#ffe066";cx.fillText(""+G.stars,VW-34*UISC,cy);
-  cx.save();cx.translate(VW-34*UISC-8*UISC-tw,cy);cx.scale(1+G.starPop*0.6,1+G.starPop*0.6);
-  starPath(0,0,8.5);cx.fillStyle="#ffe066";cx.fill();cx.strokeStyle="rgba(0,0,0,0.35)";cx.lineWidth=1;starPath(0,0,8.5);cx.stroke();cx.restore();
+  var cy=22*UISC,ht=Math.max(0,Math.floor(G.height/10)),mt=ht+"m";
+  var mtw=cx.measureText(mt).width+26*UISC;
+  uiCard(12*UISC,8*UISC,mtw,30*UISC);
+  cx.fillStyle="#fff";cx.font="800 "+Math.round(17*UISC)+"px system-ui";cx.textAlign="center";
+  cx.fillText(mt,12*UISC+mtw/2,23*UISC);
+  var num=""+G.stars,ntw=cx.measureText(num).width;
+  var starR=8.5*UISC,gap=6*UISC;
+  var cw=14*UISC+starR*2+gap+ntw+14*UISC,ccx=VW-12*UISC-cw;
+  uiCard(ccx,8*UISC,cw,30*UISC);
+  var scx=ccx+14*UISC+starR,scy=23*UISC;
+  cx.save();cx.translate(scx,scy);cx.scale(1+G.starPop*0.6,1+G.starPop*0.6);
+  starPath(0,0,8.5);cx.fillStyle="#ffe066";cx.fill();cx.restore();
+  cx.fillStyle="#fff";cx.textAlign="left";cx.font="800 "+Math.round(17*UISC)+"px system-ui";
+  cx.fillText(num,scx+starR+gap,23*UISC);
   for(var i=0;i<G.fly.length;i++){var f=G.fly[i];
     cx.globalAlpha=1-f.t/0.5;starPath(f.x,f.y,6);cx.fillStyle="#ffe066";cx.fill();cx.globalAlpha=1;
   }
