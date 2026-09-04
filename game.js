@@ -38,21 +38,44 @@ function sLand(){tone(480,0.1,"triangle",0.1,-320);}
 function sStar(){tone(880,0.12,"sine",0.14,400);setTimeout(function(){tone(1320,0.15,"sine",0.1,500);},60);}
 function sPerfect(){tone(660,0.14,"sine",0.12,400);setTimeout(function(){tone(990,0.16,"sine",0.1,300);},60);setTimeout(function(){tone(1320,0.2,"sine",0.08,400);},120);}
 function sDie(){tone(500,0.35,"sawtooth",0.1,-380);}
-// ---------- Music (procedural, warm lullaby) ----------
-// slow, sparse, soft C-major-pentatonic line with a gentle bass; rests stop clutter
-var PENT=[261.63,293.66,329.63,392,440]; // C4 D4 E4 G4 A4
-var MEL=[0,2,3,2, 4,3,2,0, 2,3,4,3, 2,1,0,-1]; // -1 = rest
-var BAS=[0,0,-1,-1, 3,3,-1,-1, 1,1,-1,-1, 0,0,-1,-1];
-var musStep=0,musT=0;
-function music(){
+// ---------- Music (happy rainbow adventure, prance-style sequencer) ----------
+var mOn=false,mGain=null,mNext=0,mStep=0;
+var BPM=146,MSTEP=60/BPM/2,MUSVOL=0.05,BASE=523.25;
+function mFreq(s){return BASE*Math.pow(2,s/12);}
+var MEL=[
+  [4,9,12,9, 7,9,12,14, 16,14,12,9, 7,4,2,4],
+  [0,2,4,7, 9,11,12,16, 14,12,9,7, 4,2,0,-1],
+  [4,4,7,9, 12,11,9,7, 4,7,9,12, 14,12,9,-1]
+];
+var BAS=[0,-1,0,-1,7,-1,7,-1,2,-1,2,-1,4,-1,5,-1];
+function startMusic(){
+  var a=ac();if(!a||mOn)return;
+  mOn=true;mGain=a.createGain();mGain.gain.value=1;mGain.connect(a.destination);
+  mNext=a.currentTime+0.15;mStep=0;
+}
+function mNote(f,t,d,type,vol){
   var a=ac();if(!a)return;
-  if(musT>a.currentTime-0.05){
-    var m=MEL[musStep%MEL.length];
-    if(m>=0)tone(PENT[m],0.7,"sine",0.03,0);
-    var b=BAS[musStep%BAS.length];
-    if(b>=0)tone(PENT[b]/2,0.9,"triangle",0.02,0);
-    musStep++;
-    musT=a.currentTime+0.4;
+  var o=a.createOscillator(),g=a.createGain();
+  o.type=type;o.frequency.setValueAtTime(f,t);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol*MUSVOL,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+  o.connect(g);g.connect(mGain);o.start(t);o.stop(t+d+0.02);
+}
+function musicTick(){
+  if(!mOn)return;
+  var a=AC;if(!a)return;
+  if(mNext<a.currentTime-0.1)mNext=a.currentTime+0.05;
+  var look=a.currentTime+0.2;
+  while(mNext<look){
+    var s=mStep%16,ph=((mStep/16|0)%MEL.length),m=MEL[ph][s];
+    if(m>=0){
+      mNote(mFreq(m),mNext,MSTEP*0.9,"square",0.5);
+      if(s%4===2)mNote(mFreq(m+12),mNext,MSTEP*0.4,"sine",0.1);
+    }
+    var b=BAS[s];
+    if(b>=0){mNote(mFreq(b)/2,mNext,MSTEP*0.9,"triangle",0.4);mNote(mFreq(b)/2,mNext,MSTEP*1.9,"sine",0.2);}
+    mNext+=MSTEP;mStep++;
   }
 }
 
@@ -128,6 +151,7 @@ function begin(){
 }
 function down(e){
   var a=ac();if(a&&a.state==="suspended")a.resume();
+  startMusic();
   if(G.over){if(inRetry(e))retry();return;}
   if(G.menu){begin();return;}
   if(G.dead)return;
@@ -664,7 +688,7 @@ function loop(ts){
   now=ts/1000;
   step();
   render();
-  music();
+  musicTick();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(function(ts){t0=ts;requestAnimationFrame(loop);});
