@@ -90,7 +90,7 @@ function newGame(){
     combos:0,landFlash:0,sx:0,sy:0,slide:0,lastDir:0,lastAimX:0,t:Math.random()*999,blink:0,
     platforms:[],nextId:1,topY:groundY,star:[],part:[],shake:0,lastPf:0,lastPfX:0,
     everJumped:false,mil:0,milT:-9,milV:0,groundY:groundY,stand:null,fly:[],starPop:0,
-    bonus:0,bonusV:0,bonusOn:false,lastTap:-9,ens:[],ivn:0};
+    bonus:0,bonusV:0,bonusOn:false,lastTap:-9,ens:[],ivn:0,drops:[],rain:0,wind:0,wt:6};
   // broad grass floor so walking can't fall off the edges at the start
   G.platforms.push({x:-1600,y:groundY,w:3600,type:0,a:0,d:0,base:0,t:0,by:groundY,ox:0,oy:0,sp:0,spv:0,drop:false,dy:0});
   // camera keeps player near the bottom on the ground, easing up as they climb
@@ -243,6 +243,7 @@ function step(){
   if(p.armed&&now-p.armedAt>0.28)p.armed=false;
   // air control: aim while airborne nudges vx (bounded so a stuck drag can't runaway)
   if(!p.grounded&&p.dragON){p.vx+=p.aimX*1500*DT;if(p.vx>520)p.vx=520;if(p.vx<-520)p.vx=-520;}
+  if(!p.grounded&&p.wind)p.vx+=p.wind*90*DT;
   p.vy+=1500*DT;
   p.bonusV+=(p.bonus-p.bonusV)*Math.min(1,DT*5);
   if(p.bonusOn){
@@ -275,6 +276,29 @@ function step(){
     else{e.x+=e.vx*DT;if(e.x<e.baseX){e.x=e.baseX;e.vx=-e.vx;}if(e.x>e.baseX+e.span){e.x=e.baseX+e.span;e.vx=-e.vx;}e.y=e.baseY+Math.sin(e.t*2.6)*24;e.t+=DT;}
     if(e.pf)e.x=e.pf.x+e.rx;
     if(e.y>p.camY+VH+160||e.y<p.camY-VH*3.6)p.ens.splice(i,1);
+  }
+  // weather: wind + rain can roll in above 500m, nudging jumps and splashing platforms
+  if(p.height/10>=500){
+    if(p.wt<=0){
+      if(Math.random()<0.5){p.rain=1;p.wind=(Math.random()<0.5?-1:1);p.wt=8+Math.random()*8;}
+      else{p.rain=0;p.wind=0;p.wt=6+Math.random()*12;}
+    }else p.wt-=DT;
+    if(p.rain){
+      if(Math.random()<0.5&&p.drops.length<50)p.drops.push({x:p.camX+Math.random()*VW,y:-30+Math.random()*60,vx:p.wind*170,vy:600+Math.random()*160});
+      for(var rd=p.drops.length-1;rd>=0;rd--){var dp=p.drops[rd];
+        dp.x+=dp.vx*DT;dp.y+=dp.vy*DT;
+        if(Math.random()<0.35&&dp.y>0){
+          for(var j=0;j<p.platforms.length;j++){var pf2=p.platforms[j];
+            if(dp.y>=pf2.y-6&&dp.y<=pf2.y+16&&dp.x>pf2.x&&dp.x<pf2.x+pf2.w){
+              p.part.push({x:dp.x,y:dp.y-5,vx:(Math.random()*2-1)*24,vy:-Math.random()*50-18,l:0.3,r:1.5,c:"rgba(170,215,255,0.85)"});
+              if(p.part.length>250)p.part.shift();
+              p.drops.splice(rd,1);break;
+            }
+          }
+        }
+        if(p.drops[rd]&&dp.y>p.camY+VH+40)p.drops.splice(rd,1);
+      }
+    }
   }
   // slippery ground (type 4): low friction, keeps sliding until it leaves the platform
   if(p.grounded&&p.stand&&p.stand.type===4){
@@ -637,13 +661,22 @@ var clouds=[];
 (function(){for(var i=0;i<9;i++)clouds.push({x:Math.random()*VW,y:Math.random()*VH,s:0.5+Math.random()*1.1,v:Math.random()*6+3,par:0.5+Math.random()*0.5});})();
 function drawBG(){
   var h=Math.min(1,G.height/2800);
+  var sp=clamp((G.height/10-1500)/700,0,1),h2=Math.max(h,sp);
   var g=cx.createLinearGradient(0,0,0,VH);
-  g.addColorStop(0,mix("#12102b","#05040f",h));
-  g.addColorStop(0.4,mix("#39206e","#0b0820",h));
-  g.addColorStop(0.75,mix("#8a5fd0","#241a52",h));
-  g.addColorStop(1,mix("#ffd1ec","#6fc3ff",h));
+  g.addColorStop(0,mix("#12102b","#020112",h2));
+  g.addColorStop(0.4,mix("#39206e","#05041c",h2));
+  g.addColorStop(0.75,mix("#8a5fd0","#150f3e",h2));
+  g.addColorStop(1,mix("#ffd1ec","#55557f",h2));
   cx.fillStyle=g;cx.fillRect(0,0,VW,VH);
-  // clouds fade out and stars fade in as you climb into space
+  if(sp>0.01){ // faint space nebulae
+    for(var nb=0;nb<3;nb++){
+      cx.globalAlpha=0.12*sp;
+      var bx=((nb*211+41)%VW)+Math.sin(now*0.06+nb*2)*8;
+      var by=(nb*173)%(VH*0.6)+VH*0.08;
+      blob(bx,by,48,"#7b5cff");blob(bx+50,by+22,34,"#3a8bff");
+    }
+    cx.globalAlpha=1;
+  }
   cx.globalAlpha=Math.max(0,0.55*(1-h*1.4));
   for(var i=0;i<clouds.length;i++){var c=clouds[i];
     c.x+=c.v*DT;if(c.x>VW+60)c.x=-60;
@@ -651,11 +684,89 @@ function drawBG(){
     drawCloud(c.x-G.camX*0.18*c.par,cy,c.s,["#c9b3e8","#d8bfef","#bfa8e0"][i%3]);
   }
   cx.globalAlpha=1;
-  var ns=Math.round(20+h*110)+((G.height/40)|0)%6;
+  var ns=Math.round(20+h*110+sp*70)+((G.height/40)|0)%6;
   for(var i=0;i<ns&&i<130;i++){
     var tx=((i*89+i*i*13)%1000)/1000*VW, ty=((i*47+i*i*7)%1000)/1000*VH;
     var tw=0.4+((i*37)%10)/10;
-    if(h>0.05&&Math.sin(now*2+i*2.3+tx)>0.3)blob(tx,ty,tw,"rgba(255,255,255,"+(0.3+0.55*h)+")");
+    if(h>0.05&&Math.sin(now*2+i*2.3+tx)>0.3)blob(tx,ty,tw,"rgba(255,255,255,"+(0.3+0.55*h2)+")");
+  }
+  drawBodies();
+}
+function drawBodies(){
+  var hM=G.height/10;
+  var bs=[[1500,0.72,0.16,26,"#ffeec9"],[4000,0.2,0.3,34,"#8fd3ff"],[7000,0.78,0.5,40,"#ffd166"]];
+  for(var i=0;i<3;i++){
+    var a=clamp((hM-bs[i][0])/600,0,1);
+    if(a<=0)continue;
+    var bx=VW*bs[i][1]-G.camX*0.04,by=VH*bs[i][2]+Math.sin(now*0.2+i)*2;
+    cx.globalAlpha=0.16*a;blob(bx,by,bs[i][3]*1.6,bs[i][4]);
+    cx.globalAlpha=a;
+    blob(bx,by,bs[i][3],bs[i][4]);
+    if(i===0){blob(bx-bs[i][3]*0.25,by-bs[i][3]*0.1,bs[i][3]*0.2,"rgba(130,100,70,0.35)");blob(bx+bs[i][3]*0.3,by+bs[i][3]*0.25,bs[i][3]*0.13,"rgba(130,100,70,0.28)");}
+    else if(i===1){cx.fillStyle="rgba(130,190,255,0.55)";cx.fillRect(bx-bs[i][3],by-6,bs[i][3]*2,4);cx.fillRect(bx-bs[i][3],by+10,bs[i][3]*2,3);}
+    else{cx.strokeStyle="rgba(255,255,255,0.55)";cx.lineWidth=bs[i][3]*0.2;cx.beginPath();cx.ellipse(bx,by,bs[i][3]*1.6,bs[i][3]*0.5,-0.35,0,TAU);cx.stroke();}
+    cx.globalAlpha=1;
+  }
+}
+function drawWeather(){
+  var p=G;
+  if(p.wind){
+    var w=p.wind;
+    cx.strokeStyle="rgba(255,255,255,0.09)";cx.lineWidth=1;
+    for(var i=0;i<9;i++){
+      var f=(now*(46+i*9)+i*37)%(VW+180);
+      var sx=w>0?VW+90-f:-90+f;
+      var sy=((i*71+Math.sin(now*1.4+i)*16)%(VH+70)+VH+70)%(VH+70)-35;
+      cx.beginPath();cx.moveTo(sx,sy);
+      for(var q=1;q<=5;q++)cx.lineTo(sx+w*q*7,sy+Math.sin(now*2.2+i+q)*2.5*q);
+      cx.stroke();
+    }
+    for(var i=0;i<6;i++){
+      var f=(now*(26+i*7)+i*139)%(VW+240);
+      var sx=w>0?VW+120-f:-120+f;
+      var sy=((i*89+23)%(VH+120)+VH+120)%(VH+120)-60;
+      var r=7+(i%3)*2.5;
+      var a=0.55+0.2*Math.sin(now*1.5+i*1.7);
+      cx.globalAlpha=a*0.35;
+      drawSwirl(sx-w*4,sy+3,r*1.4,now*2.6*w+i*2.6+1.2);
+      cx.globalAlpha=a;
+      drawGust(sx,sy,r,now*2.6*w+i*2.6,w);
+      cx.globalAlpha=1;
+    }
+  }
+  if(p.rain){
+    cx.strokeStyle="rgba(170,210,255,0.45)";cx.lineWidth=1.1;
+    for(var i=0;i<p.drops.length;i++){var d=p.drops[i];
+      var dx=d.x-p.camX,dy=d.y-p.camY;
+      cx.beginPath();cx.moveTo(dx,dy);cx.lineTo(dx-d.vx*0.018,dy-d.vy*0.018);cx.stroke();
+    }
+  }
+}
+function drawSwirl(x,y,r,rot){
+  cx.strokeStyle="#fff";cx.lineWidth=1.7;cx.lineCap="round";cx.lineJoin="round";
+  var turns=2.1,N=20;
+  cx.beginPath();
+  for(var i=0;i<=N;i++){
+    var t=i/N,ang=rot+t*turns*TAU,rad=r*(1-t*0.88);
+    var px=x+Math.cos(ang)*rad,py=y+Math.sin(ang)*rad;
+    if(i===0)cx.moveTo(px,py);else cx.lineTo(px,py);
+  }
+  cx.stroke();
+}
+function drawGust(x,y,r,rot,dir){
+  drawSwirl(x,y,r,rot);
+  var L=r*5.5,ls=[1,0.62,0.32],wd=[0.9,1.5,2.1],al=[0.18,0.3,0.5];
+  cx.lineCap="round";cx.lineJoin="round";
+  for(var k=0;k<3;k++){
+    cx.strokeStyle="rgba(255,255,255,"+al[k]+")";cx.lineWidth=wd[k];
+    cx.beginPath();
+    for(var i=0;i<=12;i++){
+      var t=i/12,d=t*L*ls[k];
+      var sway=Math.sin(d*0.22-now*4.2+k*1.1)*d*0.24;
+      var px=x-dir*d,py=y+sway+d*0.07;
+      if(i===0)cx.moveTo(px,py);else cx.lineTo(px,py);
+    }
+    cx.stroke();
   }
 }
 function drawCloud(x,y,s,col){
@@ -843,6 +954,7 @@ function render(){
   cx.save();
   if(G.shake>0)cx.translate((Math.random()-0.5)*G.shake*20,(Math.random()-0.5)*G.shake*12);
   drawBG();
+  drawWeather();
   for(var i=0;i<G.platforms.length;i++)drawPlatform(G.platforms[i]);
   drawEnemies();
   if(G.star)for(var i=0;i<G.star.length;i++)drawStar(G.star[i]);
