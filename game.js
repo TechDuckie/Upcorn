@@ -715,7 +715,7 @@ function drawWeather(){
     cx.strokeStyle="rgba(255,255,255,0.09)";cx.lineWidth=1;
     for(var i=0;i<9;i++){
       var f=(now*(46+i*9)+i*37)%(VW+180);
-      var sx=w>0?VW+90-f:-90+f;
+      var sx=w>0?-90+f:VW+90-f;
       var sy=((i*71+Math.sin(now*1.4+i)*16)%(VH+70)+VH+70)%(VH+70)-35;
       cx.beginPath();cx.moveTo(sx,sy);
       for(var q=1;q<=5;q++)cx.lineTo(sx+w*q*7,sy+Math.sin(now*2.2+i+q)*2.5*q);
@@ -723,7 +723,7 @@ function drawWeather(){
     }
     for(var i=0;i<6;i++){
       var f=(now*(26+i*7)+i*139)%(VW+240);
-      var sx=w>0?VW+120-f:-120+f;
+      var sx=w>0?-120+f:VW+120-f;
       var sy=((i*89+23)%(VH+120)+VH+120)%(VH+120)-60;
       var r=7+(i%3)*2.5;
       var a=0.55+0.2*Math.sin(now*1.5+i*1.7);
@@ -754,16 +754,30 @@ function drawSwirl(x,y,r,rot){
   cx.stroke();
 }
 function drawGust(x,y,r,rot,dir){
-  drawSwirl(x,y,r,rot);
-  var L=r*5.5,ls=[1,0.62,0.32],wd=[0.9,1.5,2.1],al=[0.18,0.3,0.5];
+  // tapered spiral head (segmented so the line narrows toward the curl)
   cx.lineCap="round";cx.lineJoin="round";
+  for(var k=10;k>=1;k--){
+    var t0=k/10,t1=(k-1)/10;
+    cx.strokeStyle="rgba(255,255,255,"+(0.9-0.35*t0)+")";
+    cx.lineWidth=2.1*(1.3-t0);
+    cx.beginPath();
+    for(var q=0;q<=1;q++){
+      var t=q?t1:t0,ang=rot+t*1.7*TAU,rad=r*(0.14+0.86*t);
+      var px=x+Math.cos(ang)*rad,py=y+Math.sin(ang)*rad;
+      if(q===0)cx.moveTo(px,py);else cx.lineTo(px,py);
+    }
+    cx.stroke();
+  }
+  // flowing tail attached at the swirl's mouth (outer end of the spiral)
+  var mx=Math.cos(rot)*r*0.95,my=Math.sin(rot)*r*0.95;
+  var L=r*5.5,ls=[1,0.6,0.3],wd=[0.9,1.6,2.4],al=[0.16,0.3,0.55];
   for(var k=0;k<3;k++){
     cx.strokeStyle="rgba(255,255,255,"+al[k]+")";cx.lineWidth=wd[k];
     cx.beginPath();
     for(var i=0;i<=12;i++){
       var t=i/12,d=t*L*ls[k];
       var sway=Math.sin(d*0.22-now*4.2+k*1.1)*d*0.24;
-      var px=x-dir*d,py=y+sway+d*0.07;
+      var px=x+mx-dir*d,py=y+my+sway+d*0.08;
       if(i===0)cx.moveTo(px,py);else cx.lineTo(px,py);
     }
     cx.stroke();
