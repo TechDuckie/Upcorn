@@ -90,7 +90,7 @@ function newGame(){
     combos:0,landFlash:0,sx:0,sy:0,slide:0,lastDir:0,lastAimX:0,t:Math.random()*999,blink:0,
     platforms:[],nextId:1,topY:groundY,star:[],part:[],shake:0,lastPf:0,lastPfX:0,
     everJumped:false,mil:0,milT:-9,milV:0,groundY:groundY,stand:null,fly:[],starPop:0,
-    bonus:0,bonusV:0,bonusOn:false,lastTap:-9,ens:[],ivn:0,drops:[],rain:0,wind:0,wt:6};
+    bonus:0,bonusV:0,bonusOn:false,lastTap:-9,ens:[],ivn:0,drops:[],rain:0,wind:0,wt:6,shards:[]};
   // broad grass floor so walking can't fall off the edges at the start
   G.platforms.push({x:-1600,y:groundY,w:3600,type:0,a:0,d:0,base:0,t:0,by:groundY,ox:0,oy:0,sp:0,spv:0,drop:false,dy:0});
   // camera keeps player near the bottom on the ground, easing up as they climb
@@ -225,7 +225,14 @@ cv.style.touchAction="none";
 
 // ---------- Physics ----------
 function step(){
-  var p=G;if(!p||p.over)return;
+  var p=G;if(!p)return;
+  // shatter pieces keep tumbling (even while the game-over screen shows)
+  for(var sh=p.shards.length-1;sh>=0;sh--){var s=p.shards[sh];
+    s.vly+=1000*DT;s.dx+=s.vlx*DT;s.dy+=s.vly*DT;s.rot+=s.vr*DT;
+    var gY=G.groundY-(p.y-7)-6;
+    if(s.dy>gY){s.dy=gY;s.vly*=-0.55;s.vlx*=0.82;s.vr*=0.7;}
+  }
+  if(p.over){p.shake=Math.max(0,p.shake-DT*3);return;}
   if(p.menu){
     p.t+=DT;
     p.blink=Math.max(0,p.blink-DT);
@@ -412,6 +419,13 @@ function step(){
 function die(){
   var p=G;
   p.dead=true;p.shake=0.45;sDie();burst(p.x,p.y,20);
+  for(var si=0;si<UP.length;si++){var P=UP[si];
+    var dxp=P[0],dyp=P[1];
+    var d=Math.sqrt(dxp*dxp+dyp*dyp)||1,sp=60+Math.random()*150;
+    p.shards.push({ox:P[0],oy:P[1],col:P[2],k:P[3],s:P[4],
+      dx:0,dy:0,vlx:(dxp/d)*sp+(Math.random()*60-30),vly:(dyp/d)*sp*0.4-(60+Math.random()*160),
+      rot:Math.random()*6.2832,vr:Math.random()*10-5});
+  }
   if(Math.floor(p.height/10)>p.best){p.best=Math.floor(p.height/10);localStorage.setItem("upcornBest",String(p.best));}
   p.overAt=now;
   p.over=true;
@@ -490,6 +504,31 @@ function leg(lx,ly,dir){
   cx.beginPath();cx.ellipse(lx+dir*3,ly+5,4.5,8,0,0,TAU);cx.fill();
   cx.fillStyle="#ecc8e6";
   cx.beginPath();cx.ellipse(lx+dir*2.5,ly+10,4.5,3,0,0,TAU);cx.fill();
+}
+// unicorn shatter: the hero's own shapes scatter & tumble to the ground on death
+var UP=[
+  [-11,-18,"#ff9ecb",2,6],[-8,-4,"#fbf0f7",1,6],[0,-8,"#fff3fb",0,17],[6,-3,"#fbf0f7",1,6],
+  [-9,-34,"#ffcfe8",5,4.5],[8,-36,"#ffcfe8",5,4.5],[7,-26,"#ffffff",0,14],
+  [10,-38,"#ffe9a3",3,9],[13,-19,"#ffcfe8",2,6],[10,-27,"#3a2a45",4,3],[17,-20,"#fff0f8",0,5]
+];
+function drawPart(q){
+  var k=q.k,s=q.s,col=q.col;
+  if(k===2){cx.fillStyle=col;cx.beginPath();cx.moveTo(0,-s*1.3);cx.quadraticCurveTo(-s,-s*0.2,s*0.95,0);cx.quadraticCurveTo(s*0.2,-s*0.2,-s*0.2,-s);cx.closePath();cx.fill();}
+  else if(k===3){cx.fillStyle=col;cx.beginPath();cx.moveTo(-s*0.5,s*0.75);cx.lineTo(0,-s);cx.lineTo(s*0.6,s*0.75);cx.closePath();cx.fill();}
+  else if(k===4){blob(0,0,s,col);blob(s*0.35,-s*0.35,s*0.4,"#fff");}
+  else if(k===5){cx.fillStyle=col;cx.beginPath();cx.ellipse(0,0,s,s*0.6,0,0,TAU);cx.fill();cx.fillStyle="#ff9ecb";cx.beginPath();cx.ellipse(0,-s*0.3,s*0.5,s*0.35,0,0,TAU);cx.fill();}
+  else if(k===1){cx.fillStyle=col;cx.beginPath();cx.ellipse(0,0,s,s*0.6,0,0,TAU);cx.fill();}
+  else blob(0,0,s,col);
+}
+function drawShards(){
+  var p=G;
+  cx.save();cx.translate(p.x-p.camX,p.y-p.camY-7);
+  for(var i=0;i<p.shards.length;i++){var q=p.shards[i];
+    cx.save();cx.translate(q.ox+q.dx,q.oy+q.dy);cx.rotate(q.rot);
+    drawPart(q);
+    cx.restore();
+  }
+  cx.restore();
 }
 
 // ---------- Platforms ----------
@@ -978,7 +1017,7 @@ function render(){
   cx.globalAlpha=1;
   drawAim();
   if(G.bonusOn&&!G.grounded&&G.vy<0)drawRainbowTail();
-  if(!G.dead)drawUnicorn();
+  if(!G.dead)drawUnicorn();else drawShards();
   cx.restore();
   if(G.menu){drawMenu();}
   else{
