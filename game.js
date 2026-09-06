@@ -559,9 +559,9 @@ function drawPlatform(pf){
     cx.fillStyle="#4db954";cx.fillRect(0,gy,VW,15);             // thick grass base
     cx.fillStyle="#7ee06a";cx.fillRect(0,gy,VW,6);              // bright grass brim
     for(var i=0;i<Math.round(VW/4);i++){
-      var gx=i*4+Math.sin(pf.t+i*2.6)*1.2, gh=6+((i*7)%6);
+      var gx=i*4+Math.sin(pf.t+i*2.6)*1.2,gh=6+((i*7)%5)+(i%2?4:0);
       cx.fillStyle=i%3?"#9ef580":"#3faf49";
-      cx.beginPath();cx.moveTo(gx,gy+15);cx.lineTo(gx-2.4,gy+15-gh);cx.lineTo(gx+2.4,gy+15-gh);cx.closePath();cx.fill();
+      cx.beginPath();cx.moveTo(gx-2.6,gy);cx.lineTo(gx,gy-gh);cx.lineTo(gx+2.6,gy);cx.closePath();cx.fill();
       if(i%5===0)blob(gx+Math.sin(pf.t+i)*2,gy-4,2,"rgba(255,255,255,0.5)");
     }
     var pc=["#ff5c8a","#ffd166","#7ee0ff","#c77dff","#ff9f43"];
