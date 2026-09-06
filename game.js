@@ -145,7 +145,8 @@ function gen(){
           var span=70+Math.random()*90;
           G.ens.push({type:3,pf:null,r:12,vx:(Math.random()<0.5?-1:1)*(40+Math.random()*25),vy:0,y:ny-70,t:Math.random()*999,rot:0,baseX:clamp(nx+nw/2-span/2,-20,VW-20),baseY:ny-70,rx:0,span:span});
         }else{
-          var en={type:t,pf:p,rx:clamp((Math.random()*2-1)*(nw/2-26),-nw/2+26,nw/2-26),r:14,vx:t===2?(Math.random()<0.5?-1:1)*70:0,vy:t===1?-112:-230,y:ny-14,t:Math.random()*999,rot:0,baseX:0,baseY:ny-14,span:0};
+          var hwm=t===0?16:(t===1?17:19),k=Math.max(0,nw/2-hwm);
+          var en={type:t,pf:p,rx:clamp((Math.random()*2-1)*k,-k,k),hw:hwm,r:14,vx:t===2?(Math.random()<0.5?-1:1)*70:0,vy:t===1?-112:-230,y:ny-14,t:Math.random()*999,rot:0,baseX:0,baseY:ny-14,span:0};
           G.ens.push(en);
         }
       }
@@ -276,12 +277,12 @@ function step(){
   }
   // enemies update
   for(var i=p.ens.length-1;i>=0;i--){var e=p.ens[i];
-    var baseY=(e.pf?e.pf.y:0)-14;
+    var baseY=(e.pf?e.pf.y+e.pf.oy:0)-14;
     if(e.type===0){e.vy+=900*DT;e.y+=e.vy*DT;if(e.y>=baseY){e.y=baseY;e.vy=-230;}}
     else if(e.type===1)e.y=baseY;
-    else if(e.type===2){var lo=-e.pf.w/2+20,hi=e.pf.w/2-20;e.rx+=e.vx*DT;if(e.rx<lo){e.rx=lo;e.vx=-e.vx;}if(e.rx>hi){e.rx=hi;e.vx=-e.vx;}e.y=baseY;e.rot+=e.vx*DT/14;}
+    else if(e.type===2){var k=Math.max(0,e.pf.w/2-e.hw),lo=-k,hi=k;e.rx+=e.vx*DT;if(e.rx<lo){e.rx=lo;e.vx=-e.vx;}if(e.rx>hi){e.rx=hi;e.vx=-e.vx;}e.y=baseY;e.rot+=e.vx*DT/14;}
     else{e.x+=e.vx*DT;if(e.x<e.baseX){e.x=e.baseX;e.vx=-e.vx;}if(e.x>e.baseX+e.span){e.x=e.baseX+e.span;e.vx=-e.vx;}e.y=e.baseY+Math.sin(e.t*2.6)*24;e.t+=DT;}
-    if(e.pf)e.x=e.pf.x+e.rx;
+    if(e.pf)e.x=e.pf.x+e.pf.ox+e.rx;
     if(e.y>p.camY+VH+160||e.y<p.camY-VH*3.6)p.ens.splice(i,1);
   }
   // weather: wind + rain can roll in above 500m, nudging jumps and splashing platforms
@@ -571,8 +572,7 @@ function drawPlatform(pf){
   }
   if(pf.type===2){ // thin thrusting steel needles
     var sht=6+pf.spv*16;
-    for(var i=0;i<(pf.w/11)|0;i++){
-      var sx=x+5+i*11;
+    for(var sx=x+10;sx<x+pf.w-7;sx+=11){
       cx.fillStyle="#c9d4e8";
       cx.beginPath();cx.moveTo(sx-sht*0.14,y-6);cx.lineTo(sx,y-6-sht);cx.lineTo(sx+sht*0.14,y-6);cx.closePath();cx.fill();
       cx.fillStyle="#8a96b8";
