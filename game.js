@@ -960,6 +960,24 @@ function drawOver(){
 function drawHints(){
   var p=G;
   cx.textAlign="center";cx.textBaseline="middle";
+  // first-jump control hint (shows until the player launches once)
+  if(p.grounded&&!p.everJumped&&!p.menu&&!p.over&&!p.dragON){
+    var hx=p.x-p.camX,hy=p.y-p.camY-84;
+    var pu=0.72+0.28*Math.sin(now*3);
+    cx.globalAlpha=pu;
+    var bob=Math.sin(now*3)*3;
+    var ax=hx,ay=hy-16*UISC+bob;
+    cx.strokeStyle="#fff8ee";cx.lineWidth=2*UISC;cx.lineCap="round";
+    cx.beginPath();cx.moveTo(ax,ay-9*UISC);cx.lineTo(ax,ay);cx.stroke();
+    cx.fillStyle="#fff8ee";
+    cx.beginPath();cx.moveTo(ax-5*UISC,ay);cx.lineTo(ax-0.5*UISC,ay-2*UISC);cx.lineTo(ax+5*UISC,ay);cx.closePath();cx.fill();
+    cx.beginPath();cx.moveTo(ax-5*UISC,ay);cx.lineTo(ax+5*UISC,ay);cx.lineTo(ax,ay+8*UISC);cx.closePath();cx.fill();
+    cx.font="800 "+Math.round(15*UISC)+"px system-ui";cx.fillStyle="#fff8ee";
+    cx.fillText("hold & drag down to aim",hx,hy+4*UISC);
+    cx.font="600 "+Math.round(12*UISC)+"px system-ui";cx.fillStyle="#ffd166";
+    cx.fillText("release to jump!",hx,hy+19*UISC+bob);
+    cx.globalAlpha=1;
+  }
   if(p.milT>-1&&now-p.milT<1.6){
     var a=Math.min(1,(now-p.milT)*2);
     var oy=(1-a)*20*UISC;
