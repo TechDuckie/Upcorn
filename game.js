@@ -21,7 +21,7 @@ window.addEventListener("orientationchange",resize);
 resize();
 var TAU=Math.PI*2,now=0,t0=0;
 
-// ---------- Audio ----------
+
 var AC=null;
 function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
 function tone(f,d,type,vol,slide){
@@ -39,7 +39,7 @@ function sStar(){tone(880,0.12,"sine",0.14,400);setTimeout(function(){tone(1320,
 function sPerfect(){tone(660,0.14,"sine",0.12,400);setTimeout(function(){tone(990,0.16,"sine",0.1,300);},60);setTimeout(function(){tone(1320,0.2,"sine",0.08,400);},120);}
 function sDie(){tone(500,0.35,"sawtooth",0.1,-380);}
 function sBoing(){tone(400,0.12,"triangle",0.09,260);}
-// ---------- Music (happy rainbow adventure, prance-style sequencer) ----------
+
 var mOn=false,mGain=null,mNext=0,mStep=0;
 var BPM=146,MSTEP=60/BPM/2,MUSVOL=0.05,BASE=523.25;
 function mFreq(s){return BASE*Math.pow(2,s/12);}
@@ -80,10 +80,10 @@ function musicTick(){
   }
 }
 
-// ---------- Player & world ----------
+
 var G=null;
 function newGame(){
-  var groundY=360; // world y of the solid ground the unicorn stands on
+  var groundY=360;
   G={x:VW/2,y:groundY,vx:0,vy:0,grounded:true,dead:false,over:false,started:false,
     menu:true,aiming:false,power:0,aimX:0,aimY:0,armed:false,drag:{x:0,y:0},dragON:false,
     camX:0,camY:0,height:0,stars:0,best:+(localStorage.getItem("upcornBest")||0),
@@ -91,29 +91,29 @@ function newGame(){
     platforms:[],nextId:1,topY:groundY,star:[],part:[],shake:0,lastPf:0,lastPfX:0,
     everJumped:false,mil:0,milT:-9,milV:0,groundY:groundY,stand:null,fly:[],starPop:0,
     bonus:0,bonusV:0,bonusOn:false,lastTap:-9,ens:[],ivn:0,drops:[],rain:0,wind:0,wt:6,shards:[]};
-  // broad grass floor so walking can't fall off the edges at the start
+
   G.platforms.push({x:-1600,y:groundY,w:3600,type:0,a:0,d:0,base:0,t:0,by:groundY,ox:0,oy:0,sp:0,spv:0,drop:false,dy:0});
-  // camera keeps player near the bottom on the ground, easing up as they climb
+
   G.camY=groundY-VH*followK(0);
   G.lastPf=0;G.lastPfX=G.platforms[0].x;G.camX=VW/2-VW/2;G.stand=G.platforms[0];
   gen();
 }
 
 function clamp(v,a,b){return v<a?a:(v>b?b:v);}
-// on-screen fraction (0..1) for the player: ~0.72 near the ground (fills the screen),
-// easing to ~0.40 once you're high so you can see the climb ahead
+
+
 function followK(alt){
   var a=alt/1000;if(a>1)a=1;
   return 0.80-0.28*a;
 }
 
-// ---------- Generation ----------
+
 function gen(){
   var guard=0;
   while(G.topY>G.camY-VH*3.2&&guard++<90){
     var prev=G.platforms[G.platforms.length-1];
     if(!prev)break;
-    var d=1+Math.min(1.5,(-prev.y)/950); // difficulty 1->2.5
+    var d=1+Math.min(1.5,(-prev.y)/950);
     var gap=38+Math.random()*18*d;
     var ny=prev.y-gap;
     var nw=Math.max(52,150-(Math.random()*58+12)*Math.min(d,1.6)+(Math.random()<0.15?36:0));
@@ -159,7 +159,7 @@ function prune(){
   if(G.star.length)G.star=G.star.filter(function(s){return s.y<G.camY+VH*4+200;});
 }
 
-// ---------- Input ----------
+
 function evPt(e){
   var r=cv.getBoundingClientRect();
   return{x:(e.clientX-r.left-offPX)/SC,y:(e.clientY-r.top)/SC};
@@ -191,7 +191,7 @@ function move(e){
 function up(e){
   if(!G)return;
   if(G.dead){G.dragON=false;G.aiming=false;G.armed=false;return;}
-  // only launch from a fresh grounded drag that actually moved this gesture
+
   if(G.armed&&now-G.armedAt<0.2&&G.power>0.12){
     var p=G.power,V=940*p;
     G.vx=G.aimX*V;G.vy=G.aimY*V;
@@ -224,10 +224,10 @@ window.addEventListener("pointercancel",cancel);
 window.addEventListener("blur",cancel);
 cv.style.touchAction="none";
 
-// ---------- Physics ----------
+
 function step(){
   var p=G;if(!p)return;
-  // shatter pieces keep tumbling (even while the game-over screen shows)
+
   for(var sh=p.shards.length-1;sh>=0;sh--){var s=p.shards[sh];
     s.vly+=1000*DT;s.dx+=s.vlx*DT;s.dy+=s.vly*DT;s.rot+=s.vr*DT;
     var gY=G.groundY-(p.y-7)-6;
@@ -240,16 +240,16 @@ function step(){
     if(Math.random()<0.004)p.blink=0.14;
     p.sx+=(0-p.sx)*Math.min(1,DT*7);
     p.sy+=(0-p.sy)*Math.min(1,DT*7);
-    // keep clouds drifting (follow leaves the player low on screen when near the ground)
+
     var tyi=p.y-VH*followK(p.height,G.groundY-p.y);
     p.camY+=(tyi-p.camY)*Math.min(1,DT*8);
     return;
   }
-  // can't launch while airborne (clears any stale armed gesture)
+
   if(!p.grounded&&p.armed)p.armed=false;
-  // a drag that isn't followed by a release within 0.28s is stale — disarm it
+
   if(p.armed&&now-p.armedAt>0.28)p.armed=false;
-  // air control: aim while airborne nudges vx (bounded so a stuck drag can't runaway)
+
   if(!p.grounded&&p.dragON){p.vx+=p.aimX*1500*DT;if(p.vx>520)p.vx=520;if(p.vx<-520)p.vx=-520;}
   if(!p.grounded&&p.wind)p.vx+=p.wind*90*DT;
   p.vy+=1500*DT;
@@ -261,21 +261,21 @@ function step(){
     if(p.bonus<=0){p.bonus=0;p.bonusOn=false;}
   }
   p.x+=p.vx*DT;p.y+=p.vy*DT;
-  // special platforms
+
   for(var i=0;i<p.platforms.length;i++){var pf=p.platforms[i];
     if(pf.type===1)pf.x=pf.base+Math.sin(pf.t+now)*pf.a;
-    if(pf.type===2){ // paced spike trap: 3s walkable, 2s spiked, repeat
+    if(pf.type===2){
       pf.sp+=DT;if(pf.sp>=5)pf.sp-=5;
       pf.spv=pf.sp>3?1:0;
     }
-    if(pf.type===5){ // shaky trap: solid until stepped on, then trembles & drops under you
+    if(pf.type===5){
       if(!pf.sh&&!pf.drop&&p.grounded&&p.stand===pf)pf.sh=1;
       if(pf.sh&&!pf.drop){pf.tr+=DT;pf.ox=Math.sin(now*60)*3;if(pf.tr>0.6){pf.drop=true;pf.dy=0;}}
       if(pf.drop){pf.dy+=900*DT;pf.y+=pf.dy*DT;pf.oy=Math.max(0,pf.oy-DT*3);}
       if(!pf.sh&&!pf.drop)pf.ox=0;
     }
   }
-  // enemies update
+
   for(var i=p.ens.length-1;i>=0;i--){var e=p.ens[i];
     var baseY=(e.pf?e.pf.y+e.pf.oy:0)-14;
     if(e.type===0){e.vy+=900*DT;e.y+=e.vy*DT;if(e.y>=baseY){e.y=baseY;e.vy=-230;}}
@@ -285,7 +285,7 @@ function step(){
     if(e.pf)e.x=e.pf.x+e.pf.ox+e.rx;
     if(e.y>p.camY+VH+160||e.y<p.camY-VH*3.6)p.ens.splice(i,1);
   }
-  // weather: wind + rain can roll in above 500m, nudging jumps and splashing platforms
+
   if(p.height/10>=500){
     if(p.wt<=0){
       if(Math.random()<0.5){p.rain=1;p.wind=(Math.random()<0.5?-1:1);p.wt=8+Math.random()*8;}
@@ -308,23 +308,23 @@ function step(){
       }
     }
   }
-  // slippery ground (type 4): low friction, keeps sliding until it leaves the platform
+
   if(p.grounded&&p.stand&&p.stand.type===4){
     p.slide=(p.lastAimX||0.6)*300;
   }
-  // platform dropped out from under the player
+
   if(p.grounded&&p.stand&&p.stand.drop){
     p.grounded=false;p.stand=null;p.vx=0;p.vy=0;
   }
-  // spike thrusts up while player stands on it
+
   if(p.grounded&&p.stand&&p.stand.type===2&&p.stand.spv>0.4){
     die();
   }
-  // ride moving platform while grounded
+
   if(p.grounded&&p.stand){
     p.x+=p.stand.x-p.lastPfX;p.lastPfX=p.stand.x;
   }
-  // landing (swept: catches platforms even at high fall speed)
+
   if(!p.grounded){
     var prevY=p.y-p.vy*DT;
     for(var i=0;i<p.platforms.length;i++){var pf=p.platforms[i];
@@ -342,7 +342,7 @@ function step(){
       }
     }
   }
-  // enemy contact
+
   if(p.ivn>0)p.ivn-=DT;
   else{for(var i=0;i<p.ens.length;i++){var e=p.ens[i];
     var dx=p.x-e.x,dy=p.y-14-e.y;
@@ -356,7 +356,7 @@ function step(){
       burst(e.x,e.y,8);
       break;
     }}}
-  // collect stars
+
   for(var i=p.star.length-1;i>=0;i--){var s=p.star[i];
     s.x+=s.sX*DT;s.y+=s.sY*DT;
     var dx=p.x-s.x,dy=p.y-15-s.y;
@@ -368,9 +368,9 @@ function step(){
     if(f.t>0.5)p.fly.splice(i,1);
   }
   p.starPop=Math.max(0,p.starPop-DT);
-  // keep the user grounded: feet pinned to the platform top, no vy/y sink
+
   if(p.grounded)p.vx=0;
-  if(p.grounded&&p.slide){ // forward bounce; friction low on slippery (glides off the end)
+  if(p.grounded&&p.slide){
     p.x+=p.slide*DT;
     var frc=(p.stand&&p.stand.type===4)?30:260;
     p.slide-=Math.sign(p.slide)*frc*DT;if(Math.abs(p.slide)<(frc>100?12:4))p.slide=0;
@@ -380,17 +380,17 @@ function step(){
   if(p.grounded&&p.stand){
     var _pf=p.stand;
     if(_pf.y<=p.y){
-      if(p.x<_pf.x||p.x>_pf.x+_pf.w){p.grounded=false;p.stand=null;p.vy=0;p.slide=0;} // slid off edge -> fall
+      if(p.x<_pf.x||p.x>_pf.x+_pf.w){p.grounded=false;p.stand=null;p.vy=0;p.slide=0;}
       else{p.y=_pf.y;p.vy=0;}
     }
   }
-  // camera — follows player horizontally so jumping far left/right keeps them in view
-  // camera — follows player horizontally so jumping far left/right keeps them in view
+
+
   var tx=p.x-VW/2;
   p.camX+=(tx-p.camX)*Math.min(1,DT*6);
   var ty=p.y-VH*followK(p.height,p.groundY-p.y);
   p.camY+=(ty-p.camY)*Math.min(1,DT*8);
-  // height + milestones (above the ground)
+
   var hgt=G.groundY-p.y;
   if(hgt>p.height)p.height=hgt;
   var hm=Math.floor(p.height/10);
@@ -398,7 +398,7 @@ function step(){
   while(p.mil<ms.length&&hm>=ms[p.mil]){
     p.milV=ms[p.mil];p.milT=now;sPerfect();p.mil++;
   }
-  // particles
+
   for(var i=p.part.length-1;i>=0;i--){var q=p.part[i];
     q.vy+=500*DT;q.x+=q.vx*DT;q.y+=q.vy*DT;q.l-=DT;
     if(q.l<=0)p.part.splice(i,1);
@@ -410,10 +410,10 @@ function step(){
   p.landFlash=Math.max(0,p.landFlash-DT);
   p.shake=Math.max(0,p.shake-DT*3);
   p.t+=DT;
-  // death fall — smash into the grass (shatter) instead of falling through it
+
   if(!p.grounded&&p.y>=G.groundY+2){p.y=G.groundY;burst(p.x,p.y,32);die();return;}
   if(p.y>p.camY+VH+50){die();return;}
-  // generation
+
   if(G.topY>G.camY-VH*3.2){gen();}
   prune();
 }
@@ -433,7 +433,7 @@ function die(){
 }
 var DT=1/60;
 
-// ---------- Particles ----------
+
 var PC=["#ff6b9d","#ffd166","#7ee0ff","#c77dff","#a3ff8e"];
 var RNB=["#FF4D6D","#FF9F43","#FFE45E","#65E572","#38D9FF","#4D8DFF","#A855F7"];
 function burst(x,y,n){
@@ -442,61 +442,61 @@ function burst(x,y,n){
   }
 }
 
-// ---------- Primitives ----------
+
 function blob(x,y,r,f){cx.fillStyle=f;cx.beginPath();cx.arc(x,y,r,0,TAU);cx.fill();}
 function rr(x,y,w,h,r){cx.beginPath();cx.moveTo(x+r,y);cx.arcTo(x+w,y,x+w,y+h,r);cx.arcTo(x+w,y+h,x,y+h,r);cx.arcTo(x,y+h,x,y,r);cx.arcTo(x,y,x+w,y,r);cx.closePath();}
 
-// ---------- Unicorn ----------
+
 function drawUnicorn(){
   var p=G;
   var px=p.x-p.camX,py=p.y-p.camY;
   var wob=Math.sin(p.t*2)*1.5;
   cx.save();
-  // squash & stretch (sprite drawn so p.y == the unicorn's feet)
+
   var sq=Math.max(0.55,1-p.sx*0.7+(p.aiming?0.25:0));
   cx.translate(px,py-7);
   cx.scale(1/sq,sq);
   var y0=-12+wob*(p.grounded?1:0.3);
-  // tail
+
   cx.fillStyle="#ff9ecb";
   cx.save();cx.translate(-11,y0-6);cx.rotate(0.7+Math.sin(p.t*3)*0.25*(p.grounded?1:0.4));
   cx.beginPath();cx.moveTo(0,0);
   cx.quadraticCurveTo(-7,-6,-9,-14);cx.quadraticCurveTo(-4,-10,0,-2);cx.closePath();cx.fill();cx.restore();
-  // mane
+
   cx.fillStyle="#ffcfe8";
   cx.beginPath();cx.moveTo(8,y0-16);
   cx.quadraticCurveTo(20,y0-28+Math.sin(p.t*5)*2,13,y0-10);
   cx.quadraticCurveTo(22,y0-20+Math.sin(p.t*5+1)*2,15,y0-2);
   cx.closePath();cx.fill();
-  // hind leg
+
   leg(-9,-6+ y0+6,1);
-  // body
+
   blob(0,y0+4,17,"#fff3fb");blob(4,y0,16,"#fff9fd");
-  // front leg
+
   leg(6,y0+6,-1);
-  // ears
+
   blob(-9,y0-22,4.5,"#ffcfe8");blob(-10,y0-25,2.5,"#ff9ecb");
   blob(8,y0-24,4.5,"#ffcfe8");blob(9,y0-27,2.5,"#ff9ecb");
-  // head
+
   blob(7,y0-14,14,"#ffffff");
-  // horn
+
   cx.fillStyle="#ffe9a3";
   cx.beginPath();cx.moveTo(5,y0-26);cx.lineTo(11,y0-50+Math.sin(p.t*5)*1);cx.lineTo(14,y0-24);cx.closePath();cx.fill();
   cx.fillStyle="#fff7d6";
   cx.beginPath();cx.moveTo(7,y0-30);cx.lineTo(10,y0-42);cx.lineTo(12,y0-28);cx.closePath();cx.fill();
   if(Math.random()<0.05)blob(11,y0-50,1.5,"#fff");
-  // eyes
+
   var ex=4,ey=y0-15;
   if(p.blink>0){blob(ex+2,ey,2,"#3a2a45");blob(10,ey,2,"#3a2a45");}
   else{
     blob(ex,ey,3,"#3a2a45");blob(ex+1.2,ey-1,1.2,"#fff");
     blob(10,ey,3,"#3a2a45");blob(11.2,ey-1,1.2,"#fff");
   }
-  // muzzle
+
   blob(17,y0-8,5,"#fff0f8");blob(19,y0-7,2.6,"#ffc6dd");
-  // cheeks
+
   blob(5,y0-3,3,"#ffd1e8");
-  // horn sparkle
+
   if(Math.sin(p.t*6)>0.7)blob(13+Math.sin(p.t*9)*5,y0-46,1.8,"#ffe9a3");
   cx.restore();
 }
@@ -506,7 +506,7 @@ function leg(lx,ly,dir){
   cx.fillStyle="#ecc8e6";
   cx.beginPath();cx.ellipse(lx+dir*2.5,ly+10,4.5,3,0,0,TAU);cx.fill();
 }
-// unicorn shatter: the hero's own shapes scatter & tumble to the ground on death
+
 var UP=[
   [-11,-18,"#ff9ecb",2,6],[-8,-4,"#fbf0f7",1,6],[0,-8,"#fff3fb",0,17],[6,-3,"#fbf0f7",1,6],
   [-9,-34,"#ffcfe8",5,4.5],[8,-36,"#ffcfe8",5,4.5],[7,-26,"#ffffff",0,14],
@@ -532,7 +532,7 @@ function drawShards(){
   cx.restore();
 }
 
-// ---------- Platforms ----------
+
 var RCB=["#ff5c8a","#ff9f43","#ffd93d","#6ad66a","#4aa8ff","#b06bff"];
 function drawPlatform(pf){
   var x=pf.x-G.camX+pf.ox;
@@ -550,14 +550,14 @@ function drawPlatform(pf){
   }
   cx.fillStyle="rgba(255,255,255,0.9)";
   rr(x,y-7,pf.w,5,2.5);cx.fill();
-  if(pf.type===0&&pf.y>=G.groundY-1&&pf.y<=G.groundY+1){ // grassy meadow beneath
+  if(pf.type===0&&pf.y>=G.groundY-1&&pf.y<=G.groundY+1){
     var gy=y-6;
-    cx.fillStyle="#5a3d22";cx.fillRect(0,gy,VW,VH-gy+2);       // deep brown soil
-    cx.fillStyle="#6d4c2a";cx.fillRect(0,gy,VW,30);             // lighter topsoil
-    cx.fillStyle="rgba(20,12,4,0.18)";cx.fillRect(0,gy+30,VW,VH-gy-30); // shade lower
+    cx.fillStyle="#5a3d22";cx.fillRect(0,gy,VW,VH-gy+2);
+    cx.fillStyle="#6d4c2a";cx.fillRect(0,gy,VW,30);
+    cx.fillStyle="rgba(20,12,4,0.18)";cx.fillRect(0,gy+30,VW,VH-gy-30);
     for(var i=0;i<7;i++)blob(60+(i*47)%(VW-80),gy+40+((i*31)%(VH-gy-50)),3,"rgba(90,60,30,0.5)");
-    cx.fillStyle="#4db954";cx.fillRect(0,gy,VW,15);             // thick grass base
-    cx.fillStyle="#7ee06a";cx.fillRect(0,gy,VW,6);              // bright grass brim
+    cx.fillStyle="#4db954";cx.fillRect(0,gy,VW,15);
+    cx.fillStyle="#7ee06a";cx.fillRect(0,gy,VW,6);
     for(var i=0;i<Math.round(VW/4);i++){
       var gx=i*4+Math.sin(pf.t+i*2.6)*1.2,gh=6+((i*7)%5)+(i%2?4:0);
       cx.fillStyle=i%3?"#9ef580":"#3faf49";
@@ -570,7 +570,7 @@ function drawPlatform(pf){
       blob(ddx,ddy,2.4,pc[i%pc.length]);blob(ddx+3,ddy,1.6,"rgba(255,255,255,0.6)");
     }
   }
-  if(pf.type===2){ // thin thrusting steel needles
+  if(pf.type===2){
     var sht=6+pf.spv*16;
     for(var sx=x+10;sx<x+pf.w-7;sx+=11){
       cx.fillStyle="#c9d4e8";
@@ -579,10 +579,10 @@ function drawPlatform(pf){
       cx.beginPath();cx.moveTo(sx,y-6-sht);cx.lineTo(sx,y-6);cx.lineTo(sx+sht*0.06,y-6);cx.closePath();cx.fill();
     }
   }
-  if(pf.type===4){ // icy slippery sheen
+  if(pf.type===4){
     for(var i=0;i<3;i++)blob(x+12+i*(pf.w-26)/2+Math.sin(now*2+i)*2,y-4,1.8,"rgba(255,255,255,0.85)");
   }
-  if(pf.type===5){ // cracks, redden and shake before dropping
+  if(pf.type===5){
     for(var i=0;i<4;i++){
       var cx2=x+(i*41)%pf.w;
       cx.strokeStyle=pf.sh?"rgba(200,40,80,0.9)":"rgba(120,20,60,0.5)";cx.lineWidth=1;
@@ -594,7 +594,7 @@ function drawPlatform(pf){
   if(pf.type===3){blob(x+pf.w/2,y-9,6,"#ffd77a");blob(x+pf.w/2-7,y-6,4,"#ffc24a");blob(x+pf.w/2+7,y-6,4,"#ffc24a");}
 }
 
-// ---------- Enemies ----------
+
 var EYE="#24163F";
 function drawEnemies(){
   for(var i=0;i<G.ens.length;i++){var e=G.ens[i];
@@ -608,7 +608,7 @@ function drawEnemies(){
   }
 }
 function drawHopper(x,y,e){
-  var sq=Math.abs(e.vy)>80?1.15:1,w2=2-sq; // stretch on rise / squash on fall
+  var sq=Math.abs(e.vy)>80?1.15:1,w2=2-sq;
   cx.save();cx.translate(x,y);cx.scale(w2,sq*0.95);
   cx.fillStyle="#72D66B";cx.beginPath();cx.ellipse(0,0,16,13,0,0,TAU);cx.fill();
   cx.fillStyle="rgba(0,0,0,0.14)";cx.beginPath();cx.ellipse(0,4,12,5,0,0,TAU);cx.fill();
@@ -677,7 +677,7 @@ function uniParade(x,y){
   p.camX=ocx;p.camY=ocy;p.t=ot;p.grounded=og;p.sx=osx;p.sy=osy;
 }
 
-// ---------- Stars ----------
+
 function drawStar(s){
   var x=s.x-G.camX,y=s.y-G.camY;
   if(y<-20||y>VH+20)return;
@@ -698,7 +698,7 @@ function starPath(px,py,r){
   cx.closePath();
 }
 
-// ---------- Clouds ----------
+
 var clouds=[];
 (function(){for(var i=0;i<9;i++)clouds.push({x:Math.random()*VW,y:Math.random()*VH,s:0.5+Math.random()*1.1,v:Math.random()*6+3,par:0.5+Math.random()*0.5});})();
 function drawBG(){
@@ -710,7 +710,7 @@ function drawBG(){
   g.addColorStop(0.75,mix("#8a5fd0","#150f3e",h2));
   g.addColorStop(1,mix("#ffd1ec","#55557f",h2));
   cx.fillStyle=g;cx.fillRect(0,0,VW,VH);
-  if(sp>0.01){ // faint space nebulae
+  if(sp>0.01){
     for(var nb=0;nb<3;nb++){
       cx.globalAlpha=0.12*sp;
       var bx=((nb*211+41)%VW)+Math.sin(now*0.06+nb*2)*8;
@@ -796,7 +796,7 @@ function drawSwirl(x,y,r,rot){
   cx.stroke();
 }
 function drawGust(x,y,r,rot,dir){
-  // tapered spiral head (segmented so the line narrows toward the curl)
+
   cx.lineCap="round";cx.lineJoin="round";
   for(var k=10;k>=1;k--){
     var t0=k/10,t1=(k-1)/10;
@@ -810,7 +810,7 @@ function drawGust(x,y,r,rot,dir){
     }
     cx.stroke();
   }
-  // flowing tail attached at the swirl's mouth (outer end of the spiral)
+
   var mx=Math.cos(rot)*r*0.95,my=Math.sin(rot)*r*0.95;
   var L=r*5.5,ls=[1,0.6,0.3],wd=[0.9,1.6,2.4],al=[0.16,0.3,0.55];
   for(var k=0;k<3;k++){
@@ -840,7 +840,7 @@ function mix(a,b,t){
 }
 function hex(h){return[parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)];}
 
-// ---------- Aim trajectory ----------
+
 function drawRainbowTail(){
   var p=G,ux=p.x-p.camX,uy=p.y-p.camY+10;
   var len=(50+120*G.bonus)*(1-Math.min(0.5,Math.max(0,p.y-G.groundY)/900));
@@ -878,7 +878,7 @@ function drawAim(){
   }
 }
 
-// ---------- UI ----------
+
 function uiCard(x,y,w,h){cx.fillStyle="rgba(40,18,70,0.78)";rr(x,y,w,h,12*UI);cx.fill();
   cx.lineWidth=1.5*UI;cx.strokeStyle="rgba(255,107,168,0.6)";rr(x,y,w,h,12*UI);cx.stroke();}
 function drawUI(){
@@ -922,7 +922,7 @@ function drawUI(){
   }
 }
 
-// ---------- Game over ----------
+
 function drawOver(){
   var p=G,a=Math.min(1,(now-p.overAt)/0.4);
   var g=cx.createLinearGradient(0,0,0,VH);
@@ -946,7 +946,7 @@ function drawOver(){
   cx.fillText("★ "+p.stars,VW/2,yc+86*UI);
   cx.fillStyle="#7fe3ff";cx.font="600 "+Math.round(15*UI)+"px system-ui";
   cx.fillText("BEST  "+Math.max(p.best,m)+" m",VW/2,yc+112*UI);
-  // retry button (neon pink, prance-style)
+
   var by=VH*0.74,bw=190*UI,bh=54*UI,pulse=1+Math.sin(now*3)*0.03;
   cx.save();cx.translate(VW/2,by);cx.scale(pulse,pulse);
   cx.shadowColor="#ff6ba8";cx.shadowBlur=16;
@@ -959,11 +959,11 @@ function drawOver(){
   cx.globalAlpha=1;
 }
 
-// ---------- Hints & milestones ----------
+
 function drawHints(){
   var p=G;
   cx.textAlign="center";cx.textBaseline="middle";
-  // first-jump control hint (shows until the player launches once)
+
   if(p.grounded&&!p.everJumped&&!p.menu&&!p.over&&!p.dragON){
     var hx=p.x-p.camX,hy=p.y-p.camY-84;
     var pu=0.72+0.28*Math.sin(now*3);
@@ -993,7 +993,7 @@ function drawHints(){
   }
 }
 
-// ---------- Menu ----------
+
 function drawMenu(){
   var g=cx.createLinearGradient(0,0,0,VH);
   g.addColorStop(0,"rgba(24,10,44,0.22)");g.addColorStop(0.5,"rgba(24,10,44,0.10)");g.addColorStop(1,"rgba(24,10,44,0.30)");
@@ -1021,7 +1021,7 @@ function drawMenu(){
   cx.globalAlpha=1;
 }
 
-// ---------- Render ----------
+
 function render(){
   cx.setTransform(1,0,0,1,0,0);cx.clearRect(0,0,cv.width,cv.height);
   cx.setTransform(DPR*SC,0,0,DPR*SC,DPR*offPX,0);
@@ -1049,7 +1049,7 @@ function render(){
   if(G.over)drawOver();
 }
 
-// ---------- Main loop ----------
+
 newGame();
 function loop(ts){
   if(t0)DT=(ts-t0)/1000;t0=ts;
